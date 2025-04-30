@@ -12,9 +12,11 @@ function renderTable() {
   }
 
   let tableNode = document.createElement("table");
+  let fragment = document.createDocumentFragment();
   renderTemp.forEach((tr, y) => {
-    tableNode.appendChild(createTRNode(tr, y))
+    fragment.appendChild(createTRNode(tr, y))
   })
+  tableNode.appendChild(fragment);
   document.getElementById('app').appendChild(tableNode)
 }
 //创建tr标签
@@ -141,6 +143,9 @@ function rowChange(e, x, y) {
     undefinedIndices.forEach(el => {
       renderTemp[el[0]][el[1]] = ''
     })
+    renderTemp.forEach(tr => {
+      tr[x] = ''
+    })
   }
   markArrX = []
   let value = e.target.value
@@ -170,7 +175,6 @@ function colChange(e, x, y) {
       if (el == undefined) {
         renderTemp[y][index] = ''
       }
-
     })
   }
 
@@ -178,6 +182,11 @@ function colChange(e, x, y) {
     let undefinedIndices = findUndefinedInRange(renderTemp, renderTemp[y][x])
     undefinedIndices.forEach(el => {
       renderTemp[el[0]][el[1]] = ''
+    })
+    renderTemp[y].forEach((el, index) => {
+      if (el == undefined) {
+        renderTemp[y][index] = ''
+      }
     })
   }
 
@@ -207,7 +216,20 @@ function Row2Change(e, x, y) {
 
   if (!value1 && !value2) return
 
+  if (renderTemp[y][x].includes('rowspan')) {
+    let undefinedIndices = findUndefinedAfterRowspan(renderTemp, renderTemp[y][x])
+    undefinedIndices.forEach(el => {
+      renderTemp[el[0]][el[1]] = ''
+    })
+  }
 
+  if (renderTemp[y][x].includes('colspan')) {
+    renderTemp[y].forEach((el, index) => {
+      if (el == undefined) {
+        renderTemp[y][index] = ''
+      }
+    })
+  }
 
   if (renderTemp[y][x].includes('cr')) {
     let undefinedIndices = findUndefinedInRange(renderTemp, renderTemp[y][x])

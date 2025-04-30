@@ -35,6 +35,9 @@ function createTRNode(tds, y) {
 //创建td标签
 function createTDNode(type, x, y) {
   let tdNode = document.createElement("td");
+
+
+
   tdNode.innerHTML = `${x}-${y}`
   tdNode.setAttribute('x', x)
   tdNode.setAttribute('y', y)
@@ -52,6 +55,10 @@ function createTDNode(type, x, y) {
   tdNode.addEventListener('contextmenu', contextmenu)
   tdNode.addEventListener('click', function () {
     closeMenu()
+  })
+  tdNode.addEventListener('dblclick', function (e) {
+    e.target.setAttribute('contenteditable', 'true')
+
   })
   return tdNode
 }
@@ -133,9 +140,10 @@ function rowChange(e, x, y) {
   }
 
   if (renderTemp[y][x].includes('rowspan')) {
-    renderTemp.forEach(tr => {
-      tr[x] = ''
-    })
+    let [spanStr, num] = renderTemp[y][x].split('-')
+    for (let i = 0; i < num - 1; i++) {
+      renderTemp[y + i + 1][x] = ''
+    }
   }
 
   if (renderTemp[y][x].includes('cr')) {
@@ -143,9 +151,10 @@ function rowChange(e, x, y) {
     undefinedIndices.forEach(el => {
       renderTemp[el[0]][el[1]] = ''
     })
-    renderTemp.forEach(tr => {
-      tr[x] = ''
-    })
+    let [spanStr, num] = renderTemp[y][x].split('-')
+    for (let i = 0; i < num - 1; i++) {
+      renderTemp[y + i + 1][x] = ''
+    }
   }
   markArrX = []
   let value = e.target.value
@@ -171,12 +180,12 @@ function colChange(e, x, y) {
   }
 
   if (renderTemp[y][x].includes('colspan')) {
-    renderTemp[y].forEach((el, index) => {
-      if (el == undefined) {
-        renderTemp[y][index] = ''
-      }
-    })
+    let [spanStr, num] = renderTemp[y][x].split('-')
+    for (let i = 0; i < num - 1; i++) {
+      renderTemp[y][x + i + 1] = ''
+    }
   }
+
 
   if (renderTemp[y][x].includes('cr')) {
     let undefinedIndices = findUndefinedInRange(renderTemp, renderTemp[y][x])

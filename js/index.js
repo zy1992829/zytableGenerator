@@ -31,36 +31,115 @@ function createTRNode(tds, y) {
   })
   return trNode
 }
+// 在 createTDNode 中获取显示文本的逻辑：
+function getDisplayText(cellValue, x, y) {
+  if (typeof cellValue !== 'string') return `${x}-${y}`;
 
+  if (cellValue.includes('|')) {
+    const parts = cellValue.split('|');
+    return parts[1] || `${x}-${y}`;
+  }
+
+  if (cellValue.includes('-')) {
+    // 是合并标记
+    return `${x}-${y}`; // 可以改为显示 "merged"
+  }
+
+  return cellValue || `${x}-${y}`;
+}
 //创建td标签
 function createTDNode(type, x, y) {
   let tdNode = document.createElement("td");
 
+  // 从 renderTemp 中读取当前单元格的文本内容（之前用户输入的）
+  const cellData = renderTemp[y][x];
 
 
-  tdNode.innerHTML = `${x}-${y}`
-  tdNode.setAttribute('x', x)
-  tdNode.setAttribute('y', y)
-  if (type) {
-    let [s, value1, value2] = type.split('-')
-    if (s == 'cr') {
-      tdNode.setAttribute('rowspan', value1)
-      tdNode.setAttribute('colspan', value2)
+  let textContent = getDisplayText(renderTemp[y][x], x, y);
+  tdNode.textContent = textContent;
+
+  // 如果是普通单元格（无合并标记），尝试提取已有文本
+  if (typeof cellData === 'string') {
+    // 如果是 'cr-2-3' 或 'rowspan-2' 这类标记，不作为文本
+    if (!cellData.includes('-')) {
+      textContent = cellData;
     } else {
-      tdNode.setAttribute(s, value1)
+      // 是合并标记，但可能附加了文本？比如我们约定：`cr-2-3|文本内容`
+      // 当前没有这个设计，所以先留空
+      const parts = cellData.split('|');
+      textContent = parts.length > 1 ? parts[1] : '';
     }
-
   }
 
-  tdNode.addEventListener('contextmenu', contextmenu)
-  tdNode.addEventListener('click', function () {
-    closeMenu()
-  })
-  tdNode.addEventListener('dblclick', function (e) {
-    e.target.setAttribute('contenteditable', 'true')
+  tdNode.textContent = textContent || `${x}-${y}`; // 显示文本
+  tdNode.setAttribute('x', x);
+  tdNode.setAttribute('y', y);
 
-  })
-  return tdNode
+  if (type) {
+    let [s, value1, value2] = type.split('-');
+    if (s === 'cr') {
+      tdNode.setAttribute('rowspan', value1);
+      tdNode.setAttribute('colspan', value2);
+    } else if (s === 'rowspan' || s === 'colspan') {
+      tdNode.setAttribute(s, value1);
+    }
+  }
+
+  // 右键菜单
+  tdNode.addEventListener('contextmenu', contextmenu);
+
+  // 点击关闭菜单
+  tdNode.addEventListener('click', function () {
+    closeMenu();
+  });
+
+  // 双击编辑
+  tdNode.addEventListener('dblclick', function (e) {
+    const cell = e.target;
+    cell.setAttribute('contenteditable', 'true');
+    cell.focus();
+
+    // 保存原始内容，用于取消编辑判断
+    cell.dataset.previousContent = cell.textContent;
+  });
+
+  // 失去焦点时保存
+  tdNode.addEventListener('blur', function (e) {
+    const cell = e.target;
+    const x = Number(cell.getAttribute('x'));
+    const y = Number(cell.getAttribute('y'));
+    const newText = cell.textContent.trim();
+
+    // 更新 renderTemp：保留合并属性，附加文本
+    let cellValue = renderTemp[y][x];
+
+    if (typeof cellValue === 'string' && (cellValue.includes('rowspan') || cellValue.includes('colspan') || cellValue.includes('cr'))) {
+      // 合并单元格类型，我们用 | 分隔属性和文本内容
+      const parts = cellValue.split('|');
+      const baseType = parts[0];
+      renderTemp[y][x] = `${baseType}|${newText}`;
+    } else {
+      // 普通单元格，直接存文本
+      renderTemp[y][x] = newText || `${x}-${y}`; // 为空时保留坐标提示
+    }
+
+    // 如果用户清空内容，显示坐标提示
+    if (!newText) {
+      cell.textContent = `${x}-${y}`;
+    }
+
+    cell.removeAttribute('contenteditable');
+  });
+
+  // 回车确认编辑（可选）
+  tdNode.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.target.blur(); // 触发 blur 保存
+    }
+  });
+
+  return tdNode;
 }
 
 //初始化表格

@@ -1,35 +1,64 @@
+body {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+}
+
 table {
-  width: 100%;
-}
-
-th,
-td {
-  border: 1px solid rgb(129, 129, 129);
   border-collapse: collapse;
+  margin-top: 20px;
 }
 
-td {
-  width: 100px;
-  height: 50px;
-  background: pink;
+td,
+th {
+  border: 1px solid #000;
+  padding: 8px 12px;
   text-align: center;
+  min-width: 60px;
+  height: 30px;
 }
 
 .box {
-  width: 200px;
-  height: 100px;
-  background: #fff;
-  box-shadow: 0px 2px 16px 0px rgba(149, 158, 167, 0.33);
   position: absolute;
-  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #ccc;
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.2);
+  padding: 10px;
+  border-radius: 4px;
+  z-index: 1000;
+  font-size: 14px;
 }
 
-#app {
-  display: flex;
-  width: 100%;
-  height: 100vh;
-  flex-direction: column;
-  align-items: center;
-  padding: 16px;
-  box-sizing: border-box;
+.box select,
+.box div {
+  margin: 5px 0;
+}
+
+input[type="number"] {
+  width: 60px;
+  padding: 5px;
+  margin-right: 10px;
+}
+
+button {
+  padding: 5px 10px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 5px;
+}
+
+button:hover {
+  background: #0056b3;
+}
+
+.export-preview {
+  margin-top: 20px;
+  padding: 15px;
+  border: 1px solid #ddd;
+  background: #f9f9f9;
+  white-space: pre-wrap;
+  font-family: monospace;
+  font-size: 12px;
 }

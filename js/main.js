@@ -61,66 +61,89 @@ function getValue(x, y) {
 function createTDNode(cellValue, x, y) {
   const tdNode = document.createElement("td");
 
-  // 解析显示文本
+  // 默认值
   let displayText = '';
-  if (typeof cellValue === 'string') {
-    if (cellValue.includes('|')) {
-      // 有合并标记和文本：如 "colspan-2|姓名"
-      const parts = cellValue.split('|');
-      displayText = parts[1] || ''; // 文本部分
-    } else if (cellValue.startsWith('rowspan-') ||
-      cellValue.startsWith('colspan-') ||
-      cellValue.startsWith('cr-')) {
-      // 只有合并标记，无文本
-      displayText = '';
-    } else {
-      // 普通文本
-      displayText = cellValue;
+  let rowspan = 1;
+  let colspan = 1;
+  let styleObj = null;
+
+  if (typeof cellValue === 'string' && cellValue.trim() !== '') {
+    const parts = cellValue.split('|').filter(p => p !== '');
+
+    for (const part of parts) {
+      // 解析跨行
+      if (part.startsWith('rowspan-')) {
+        const r = parseInt(part.split('-')[1]);
+        if (r > 1) rowspan = r;
+      }
+      // 解析跨列
+      else if (part.startsWith('colspan-')) {
+        const c = parseInt(part.split('-')[1]);
+        if (c > 1) colspan = c;
+      }
+      // 解析跨行列
+      else if (part.startsWith('cr-')) {
+        const match = part.match(/cr-(\d+)-(\d+)/);
+        if (match) {
+          const r = parseInt(match[1]);
+          const c = parseInt(match[2]);
+          if (r > 1) rowspan = r;
+          if (c > 1) colspan = c;
+        }
+      }
+      // 解析样式
+      else if (part.startsWith('style-')) {
+        try {
+          const encoded = part.slice(6); // 去掉 'style-'
+          const decoded = JSON.parse(atob(unescape(encodeURIComponent(encoded))));
+          styleObj = decoded;
+        } catch (e) {
+          console.warn('样式解析失败', e);
+        }
+      }
+      // 其他部分认为是文本（避免结构标记被当作文本）
+      else if (!part.startsWith('rowspan-') &&
+        !part.startsWith('colspan-') &&
+        !part.startsWith('cr-') &&
+        !part.startsWith('style-')) {
+        displayText = part;
+      }
     }
+
+    // 如果没提取到文本，尝试从最后一个 | 后取
+    if (!displayText && cellValue.includes('|')) {
+      const lastPipeIndex = cellValue.lastIndexOf('|');
+      const lastPart = cellValue.substring(lastPipeIndex + 1);
+      if (lastPart &&
+        !lastPart.startsWith('rowspan-') &&
+        !lastPart.startsWith('colspan-') &&
+        !lastPart.startsWith('cr-') &&
+        !lastPart.startsWith('style-')) {
+        displayText = lastPart;
+      }
+    }
+  } else if (cellValue !== null && cellValue !== undefined) {
+    displayText = String(cellValue);
   }
 
   tdNode.textContent = displayText;
   tdNode.setAttribute('x', x);
   tdNode.setAttribute('y', y);
 
-  if (typeof cellValue === 'string' && cellValue.startsWith('style-')) {
-    try {
-      const match = cellValue.match(/style-([^|]*)\|/);
-      if (match) {
-        const decoded = JSON.parse(atob(match[1]));
-        if (decoded.font) tdNode.style.fontFamily = decoded.font;
-        if (decoded.size) tdNode.style.fontSize = decoded.size + 'px';
-        if (decoded.color) tdNode.style.color = decoded.color;
-        if (decoded.bold) tdNode.style.fontWeight = decoded.bold ? 'bold' : 'normal';
-        if (decoded.italic) tdNode.style.fontStyle = 'italic';
-        if (decoded.underline) tdNode.style.textDecoration = 'underline';
-        if (decoded.textAlign) tdNode.style.textAlign = decoded.textAlign;
-        if (decoded.verticalAlign) tdNode.style.verticalAlign = decoded.verticalAlign;
-      }
-    } catch (e) {
-      console.warn('样式解析失败', e);
-    }
-  }
-
   // 设置合并属性
-  if (typeof cellValue === 'string') {
-    if (cellValue.startsWith('rowspan-')) {
-      const r = parseInt(cellValue.split('-')[1]);
-      if (r > 1) tdNode.setAttribute('rowspan', r);
-    }
-    if (cellValue.startsWith('colspan-')) {
-      const c = parseInt(cellValue.split('-')[1]);
-      if (c > 1) tdNode.setAttribute('colspan', c);
-    }
-    if (cellValue.startsWith('cr-')) {
-      const match = cellValue.match(/cr-(\d+)-(\d+)/);
-      if (match) {
-        const r = parseInt(match[1]);
-        const c = parseInt(match[2]);
-        if (r > 1) tdNode.setAttribute('rowspan', r);
-        if (c > 1) tdNode.setAttribute('colspan', c);
-      }
-    }
+  if (rowspan > 1) tdNode.setAttribute('rowspan', rowspan);
+  if (colspan > 1) tdNode.setAttribute('colspan', colspan);
+
+  // 应用样式
+  if (styleObj) {
+    if (styleObj.font) tdNode.style.fontFamily = styleObj.font;
+    if (styleObj.size) tdNode.style.fontSize = styleObj.size + 'px';
+    if (styleObj.color) tdNode.style.color = styleObj.color;
+    if (styleObj.bold) tdNode.style.fontWeight = 'bold';
+    if (styleObj.italic) tdNode.style.fontStyle = 'italic';
+    if (styleObj.underline) tdNode.style.textDecoration = 'underline';
+    if (styleObj.textAlign) tdNode.style.textAlign = styleObj.textAlign;
+    if (styleObj.verticalAlign) tdNode.style.verticalAlign = styleObj.verticalAlign;
   }
 
   // 事件绑定
@@ -287,11 +310,12 @@ function contextmenu(e, x, y) {
   const panel = customMenu.querySelector('#fontStylePanel');
 
   // 🔁 点击展开面板时，回填已有样式
+  // 🔁 点击展开面板时，回填已有样式
   toggle.addEventListener('click', (e) => {
     e.stopPropagation();
 
     if (panel.style.display === 'none') {
-      // ✅ === 关键：展开时，回填已有样式 ===
+      // ✅ === 修复：支持 colspan|style|text 格式 ===
       const cellValue = renderTemp[y][x];
       let currentStyle = {
         font: 'Arial',
@@ -303,14 +327,25 @@ function contextmenu(e, x, y) {
         textAlign: 'left'
       };
 
-      // 如果是 style-xxx|文本 格式，尝试解析
-      if (typeof cellValue === 'string' && cellValue.startsWith('style-')) {
-        const match = cellValue.match(/style-([^|]*)\|/);
-        if (match) {
+      if (typeof cellValue === 'string') {
+        // 提取所有 | 分隔的部分
+        const parts = cellValue.split('|');
+        let stylePart = null;
+
+        for (const part of parts) {
+          if (part.startsWith('style-')) {
+            stylePart = part.slice(6); // 去掉 'style-'
+            break;
+          }
+        }
+
+        if (stylePart) {
           try {
-            currentStyle = JSON.parse(atob(match[1]));
+            // ✅ 必须 reverse unescape(encodeURIComponent(...))
+            const decodedJson = decodeURIComponent(escape(atob(stylePart)));
+            currentStyle = JSON.parse(decodedJson);
           } catch (e) {
-            console.warn('解析样式失败', e);
+            console.warn('样式解析失败', e);
           }
         }
       }
@@ -340,7 +375,7 @@ function contextmenu(e, x, y) {
     }
   });
 
-  // ✅ 保存字体样式
+  // ✅ 保存字体样式（修复：保留 colspan/rowspan）
   customMenu.querySelector('#saveFontStyle').addEventListener('click', (e) => {
     e.stopPropagation();
 
@@ -354,32 +389,54 @@ function contextmenu(e, x, y) {
       textAlign: customMenu.querySelector('#textAlign').value
     };
 
-    // 提取当前文本内容
+    const encodedStyle = btoa(unescape(encodeURIComponent(JSON.stringify(newStyle))));
+
+    // 🔍 解析原值：提取结构 + 文本
     const rawValue = renderTemp[y][x];
+    let structurePart = ''; // 保存 rowspan-/colspan-/cr-
     let textContent = '';
 
     if (typeof rawValue === 'string') {
-      if (rawValue.includes('|')) {
-        const parts = rawValue.split('|');
-        textContent = parts.slice(-1)[0]; // 取最后一个 | 后的内容
-      } else if (
-        rawValue.startsWith('rowspan-') ||
-        rawValue.startsWith('colspan-') ||
-        rawValue.startsWith('cr-')
-      ) {
-        textContent = '';
+      const parts = rawValue.split('|');
+
+      // 收集所有结构标记（rowspan-/colspan-/cr-）
+      structurePart = parts
+        .filter(part =>
+          part.startsWith('rowspan-') ||
+          part.startsWith('colspan-') ||
+          part.startsWith('cr-')
+        )
+        .join('|');
+
+      // 取最后一个 | 后的内容作为文本（最可能是纯文本）
+      const lastPart = parts[parts.length - 1];
+      if (lastPart && !lastPart.startsWith('style-') &&
+        !lastPart.startsWith('rowspan-') &&
+        !lastPart.startsWith('colspan-') &&
+        !lastPart.startsWith('cr-')) {
+        textContent = lastPart;
       } else {
-        textContent = rawValue;
+        // 如果没有显式文本，尝试从非结构部分找
+        const textCandidates = parts.filter(p =>
+          !p.startsWith('rowspan-') &&
+          !p.startsWith('colspan-') &&
+          !p.startsWith('cr-') &&
+          !p.startsWith('style-')
+        );
+        textContent = textCandidates.join('') || '';
       }
     } else {
       textContent = String(rawValue || '');
     }
 
-    // 生成新值
-    const encodedStyle = btoa(unescape(encodeURIComponent(JSON.stringify(newStyle))));
-    const newValue = `style-${encodedStyle}|${textContent}`;
+    // ✅ 重新组合：结构 + 新样式 + 文本
+    let newValue = '';
+    if (structurePart) {
+      newValue += structurePart + '|';
+    }
+    newValue += `style-${encodedStyle}|${textContent}`;
 
-    // 保存并重新渲染
+    // ✅ 安全更新
     renderTemp[y][x] = newValue;
     renderTable();
     closeMenu();
@@ -586,23 +643,40 @@ function generateTableHTML() {
       const cellValue = row[x];
       if (cellValue === MERGED) continue; // 跳过被合并的占位格
 
-      const tdAttrs = [];
+      let rowspan = 1;
+      let colspan = 1;
+      let styleCSS = '';
       let text = '';
-      let styleCSS = ''; // ✅ 用于收集内联样式
 
       if (typeof cellValue === 'string') {
-        let content = cellValue;
+        const parts = cellValue.split('|').filter(p => p !== '');
 
-        // ✅ === 1. 提取样式信息（如果有）===
-        if (content.startsWith('style-') && content.includes('|')) {
-          const match = content.match(/style-([^|]*)\|(.*)/);
-          if (match) {
-            const styleStr = match[1]; // Base64 编码的样式
-            const restContent = match[2]; // 剩余内容（可能是合并标记或纯文本）
-
+        for (const part of parts) {
+          // ✅ 解析 rowspan
+          if (part.startsWith('rowspan-')) {
+            const r = parseInt(part.split('-')[1]);
+            if (r > 1) rowspan = r;
+          }
+          // ✅ 解析 colspan
+          else if (part.startsWith('colspan-')) {
+            const c = parseInt(part.split('-')[1]);
+            if (c > 1) colspan = c;
+          }
+          // ✅ 解析 cr- (跨行列)
+          else if (part.startsWith('cr-')) {
+            const match = part.match(/cr-(\d+)-(\d+)/);
+            if (match) {
+              const r = parseInt(match[1]);
+              const c = parseInt(match[2]);
+              if (r > 1) rowspan = r;
+              if (c > 1) colspan = c;
+            }
+          }
+          // ✅ 解析 style-
+          else if (part.startsWith('style-')) {
+            const styleStr = part.slice(6); // 去掉 'style-'
             try {
-              const decodedStyle = JSON.parse(atob(styleStr));
-              // 构建 style 字符串
+              const decodedStyle = JSON.parse(atob(unescape(encodeURIComponent(styleStr))));
               if (decodedStyle.font) styleCSS += `font-family:${decodedStyle.font};`;
               if (decodedStyle.size) styleCSS += `font-size:${decodedStyle.size}px;`;
               if (decodedStyle.color) styleCSS += `color:${decodedStyle.color};`;
@@ -610,48 +684,42 @@ function generateTableHTML() {
               if (decodedStyle.italic) styleCSS += `font-style:italic;`;
               if (decodedStyle.underline) styleCSS += `text-decoration:underline;`;
               if (decodedStyle.textAlign) styleCSS += `text-align:${decodedStyle.textAlign};`;
-
-              // 继续解析 restContent（可能是合并标记）
-              content = restContent;
             } catch (e) {
-              console.warn('解析样式失败', e);
+              console.warn('样式解析失败', e);
             }
           }
+          // ✅ 其他部分认为是文本（避免结构标记被当作文本）
+          else if (!part.startsWith('rowspan-') &&
+            !part.startsWith('colspan-') &&
+            !part.startsWith('cr-') &&
+            !part.startsWith('style-')) {
+            text = part;
+          }
         }
 
-        // ✅ === 2. 解析合并信息 ===
-        if (content.startsWith('rowspan-')) {
-          const match = content.match(/rowspan-(\d+)(?:\|(.*)|$)/);
-          if (match) {
-            tdAttrs.push(`rowspan="${match[1]}"`);
-            text = match[2] || '';
+        // 🔁 如果还没提取到文本，尝试从最后一个 | 后取
+        if (!text && cellValue.includes('|')) {
+          const lastPipeIndex = cellValue.lastIndexOf('|');
+          const lastPart = cellValue.substring(lastPipeIndex + 1);
+          if (lastPart &&
+            !lastPart.startsWith('rowspan-') &&
+            !lastPart.startsWith('colspan-') &&
+            !lastPart.startsWith('cr-') &&
+            !lastPart.startsWith('style-')) {
+            text = lastPart;
           }
-        } else if (content.startsWith('colspan-')) {
-          const match = content.match(/colspan-(\d+)(?:\|(.*)|$)/);
-          if (match) {
-            tdAttrs.push(`colspan="${match[1]}"`);
-            text = match[2] || '';
-          }
-        } else if (content.startsWith('cr-')) {
-          const match = content.match(/cr-(\d+)-(\d+)(?:\|(.*)|$)/);
-          if (match) {
-            tdAttrs.push(`rowspan="${match[1]}"`, `colspan="${match[2]}"`);
-            text = match[3] || '';
-          }
-        } else {
-          // 普通文本（或已提取样式的文本）
-          text = content;
         }
       } else {
-        text = cellValue || '';
+        text = String(cellValue || '');
       }
 
-      // ✅ 拼接所有属性
+      // ✅ 拼接属性
       const styleAttr = styleCSS ? ` style="${styleCSS}"` : '';
-      const attrStr = tdAttrs.length > 0 ? ' ' + tdAttrs.join(' ') : '';
-      const finalText = text ? text : ''; // 防止 undefined
+      const rowspanAttr = rowspan > 1 ? ` rowspan="${rowspan}"` : '';
+      const colspanAttr = colspan > 1 ? ` colspan="${colspan}"` : '';
+      const finalText = text;
 
-      rowHtml += `    <td${attrStr}${styleAttr}>${finalText}</td>\n`;
+      rowHtml += `    <td${rowspanAttr}${colspanAttr}${styleAttr}>${finalText}</td>\n`;
     }
 
     rowHtml += '  </tr>';

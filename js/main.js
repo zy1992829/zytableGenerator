@@ -294,7 +294,7 @@ function contextmenu(e, x, y) {
 
   document.body.appendChild(customMenu);
 
-  // ✅ 使用 customMenu 自身的 querySelector 查找子元素
+  // 使用 customMenu 自身的 querySelector 查找子元素
   customMenu.querySelector('#selectRowspan').addEventListener('change', (event) => {
     rowChange(event, x, y);
   });
@@ -305,17 +305,15 @@ function contextmenu(e, x, y) {
     crChange(event, x, y);
   });
 
-  // ✅ === 字体样式面板交互 ===
+  // === 字体样式面板交互 ===
   const toggle = customMenu.querySelector('#fontStyleToggle');
   const panel = customMenu.querySelector('#fontStylePanel');
 
-  // 🔁 点击展开面板时，回填已有样式
-  // 🔁 点击展开面板时，回填已有样式
   toggle.addEventListener('click', (e) => {
     e.stopPropagation();
 
     if (panel.style.display === 'none') {
-      // ✅ === 修复：支持 colspan|style|text 格式 ===
+      // === 修复：支持 colspan|style|text 格式 ===
       const cellValue = renderTemp[y][x];
       let currentStyle = {
         font: 'Arial',
@@ -341,7 +339,7 @@ function contextmenu(e, x, y) {
 
         if (stylePart) {
           try {
-            // ✅ 必须 reverse unescape(encodeURIComponent(...))
+            //  必须 reverse unescape(encodeURIComponent(...))
             const decodedJson = decodeURIComponent(escape(atob(stylePart)));
             currentStyle = JSON.parse(decodedJson);
           } catch (e) {
@@ -350,7 +348,7 @@ function contextmenu(e, x, y) {
         }
       }
 
-      // 🔁 回填到表单控件
+      // 回填到表单控件
       customMenu.querySelector('#fontFamily').value = currentStyle.font || 'Arial';
       customMenu.querySelector('#fontSize').value = currentStyle.size || 14;
       customMenu.querySelector('#fontColor').value = currentStyle.color || '#000000';
@@ -375,7 +373,7 @@ function contextmenu(e, x, y) {
     }
   });
 
-  // ✅ 保存字体样式（修复：保留 colspan/rowspan）
+  // 保存字体样式（修复：保留 colspan/rowspan）
   customMenu.querySelector('#saveFontStyle').addEventListener('click', (e) => {
     e.stopPropagation();
 
@@ -391,7 +389,7 @@ function contextmenu(e, x, y) {
 
     const encodedStyle = btoa(unescape(encodeURIComponent(JSON.stringify(newStyle))));
 
-    // 🔍 解析原值：提取结构 + 文本
+    // 解析原值：提取结构 + 文本
     const rawValue = renderTemp[y][x];
     let structurePart = ''; // 保存 rowspan-/colspan-/cr-
     let textContent = '';
@@ -429,14 +427,11 @@ function contextmenu(e, x, y) {
       textContent = String(rawValue || '');
     }
 
-    // ✅ 重新组合：结构 + 新样式 + 文本
     let newValue = '';
     if (structurePart) {
       newValue += structurePart + '|';
     }
     newValue += `style-${encodedStyle}|${textContent}`;
-
-    // ✅ 安全更新
     renderTemp[y][x] = newValue;
     renderTable();
     closeMenu();
@@ -451,7 +446,6 @@ function clearOverlappingSpans(startX, startY, r, c) {
   for (let y = 0; y < oRow; y++) {
     for (let x = 0; x < oCol; x++) {
       const cell = renderTemp[y][x];
-
       if (typeof cell === 'string') {
         let cr, rr, cc;
 
@@ -468,10 +462,8 @@ function clearOverlappingSpans(startX, startY, r, c) {
         } else {
           continue; // 普通文本，不处理
         }
-
         const cellEndY = y + rr;
         const cellEndX = x + cc;
-
         // 检查两个矩形是否重叠
         if (
           startX < cellEndX &&
@@ -581,13 +573,9 @@ function crChange(e, x, y) {
   const r = Number(document.getElementById('selectRowspan2').value);
   const c = Number(document.getElementById('selectColspan2').value);
   if (!r || !c) return;
-
-
-
-  // ✅ 第一步：清除该位置原有的合并
+  // 第一步：清除该位置原有的合并
   clearCellSpan(y, x);
-
-  // ✅ 第二步：清除所有与新区域重叠的其他合并
+  // 第二步：清除所有与新区域重叠的其他合并
   clearOverlappingSpans(x, y, r, c);
 
   if (r <= 1 && c <= 1) {
@@ -618,7 +606,7 @@ function closeMenu() {
 }
 
 // ========================
-// ✅ 新增：导出HTML功能
+// 新增：导出HTML功能
 // ========================
 
 function exportHTML() {
@@ -652,17 +640,17 @@ function generateTableHTML() {
         const parts = cellValue.split('|').filter(p => p !== '');
 
         for (const part of parts) {
-          // ✅ 解析 rowspan
+          // 解析 rowspan
           if (part.startsWith('rowspan-')) {
             const r = parseInt(part.split('-')[1]);
             if (r > 1) rowspan = r;
           }
-          // ✅ 解析 colspan
+          // 解析 colspan
           else if (part.startsWith('colspan-')) {
             const c = parseInt(part.split('-')[1]);
             if (c > 1) colspan = c;
           }
-          // ✅ 解析 cr- (跨行列)
+          // 解析 cr- (跨行列)
           else if (part.startsWith('cr-')) {
             const match = part.match(/cr-(\d+)-(\d+)/);
             if (match) {
@@ -672,7 +660,7 @@ function generateTableHTML() {
               if (c > 1) colspan = c;
             }
           }
-          // ✅ 解析 style-
+          //解析 style-
           else if (part.startsWith('style-')) {
             const styleStr = part.slice(6); // 去掉 'style-'
             try {
@@ -688,7 +676,7 @@ function generateTableHTML() {
               console.warn('样式解析失败', e);
             }
           }
-          // ✅ 其他部分认为是文本（避免结构标记被当作文本）
+          //其他部分认为是文本（避免结构标记被当作文本）
           else if (!part.startsWith('rowspan-') &&
             !part.startsWith('colspan-') &&
             !part.startsWith('cr-') &&
@@ -697,7 +685,7 @@ function generateTableHTML() {
           }
         }
 
-        // 🔁 如果还没提取到文本，尝试从最后一个 | 后取
+        // 如果还没提取到文本，尝试从最后一个 | 后取
         if (!text && cellValue.includes('|')) {
           const lastPipeIndex = cellValue.lastIndexOf('|');
           const lastPart = cellValue.substring(lastPipeIndex + 1);
@@ -712,13 +700,10 @@ function generateTableHTML() {
       } else {
         text = String(cellValue || '');
       }
-
-      // ✅ 拼接属性
       const styleAttr = styleCSS ? ` style="${styleCSS}"` : '';
       const rowspanAttr = rowspan > 1 ? ` rowspan="${rowspan}"` : '';
       const colspanAttr = colspan > 1 ? ` colspan="${colspan}"` : '';
       const finalText = text;
-
       rowHtml += `    <td${rowspanAttr}${colspanAttr}${styleAttr}>${finalText}</td>\n`;
     }
 
@@ -734,7 +719,6 @@ function downloadHTML() {
   const html = generateTableHTML();
   const blob = new Blob([html], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
-
   const a = document.createElement('a');
   a.href = url;
   a.download = `table_export_${new Date().toISOString().slice(0, 10)}.html`;
